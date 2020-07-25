@@ -1,58 +1,148 @@
 <template>
-  <div class="hello">
-    <h1>{{ msg }}</h1>
-    <p>
-      For a guide and recipes on how to configure / customize this project,<br>
-      check out the
-      <a href="https://cli.vuejs.org" target="_blank" rel="noopener">vue-cli documentation</a>.
-    </p>
-    <h3>Installed CLI Plugins</h3>
-    <ul>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-babel" target="_blank" rel="noopener">babel</a></li>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-eslint" target="_blank" rel="noopener">eslint</a></li>
-    </ul>
-    <h3>Essential Links</h3>
-    <ul>
-      <li><a href="https://vuejs.org" target="_blank" rel="noopener">Core Docs</a></li>
-      <li><a href="https://forum.vuejs.org" target="_blank" rel="noopener">Forum</a></li>
-      <li><a href="https://chat.vuejs.org" target="_blank" rel="noopener">Community Chat</a></li>
-      <li><a href="https://twitter.com/vuejs" target="_blank" rel="noopener">Twitter</a></li>
-      <li><a href="https://news.vuejs.org" target="_blank" rel="noopener">News</a></li>
-    </ul>
-    <h3>Ecosystem</h3>
-    <ul>
-      <li><a href="https://router.vuejs.org" target="_blank" rel="noopener">vue-router</a></li>
-      <li><a href="https://vuex.vuejs.org" target="_blank" rel="noopener">vuex</a></li>
-      <li><a href="https://github.com/vuejs/vue-devtools#vue-devtools" target="_blank" rel="noopener">vue-devtools</a></li>
-      <li><a href="https://vue-loader.vuejs.org" target="_blank" rel="noopener">vue-loader</a></li>
-      <li><a href="https://github.com/vuejs/awesome-vue" target="_blank" rel="noopener">awesome-vue</a></li>
-    </ul>
+  <div class="row">
+    <div class="col-md-12">
+      <form action="index.html" method="post" @submit.prevent>
+        <h1>{{ msg }}</h1>
+        <p class="alert alert-warning" v-show="error">{{errMsg}}</p>
+        <label for>select a area</label>
+        <br />
+        <select v-model="selected" @change="getLocations()">
+          <option value="0">select area</option>
+          <option :key="index" v-for="(option, index) in areas" v-bind:value="option">{{ option }}</option>
+        </select>
+        <br />
+        <br />
+        <label for>select a location</label>
+        <br />
+        <select v-model="selectedLocation" @change="getTime()">
+          <option value="0">select location</option>
+          <option
+            :key="index"
+            v-for="(option, index) in locations"
+            v-bind:value="option"
+          >{{ option }}</option>
+        </select>
+
+        <br />
+        <br />
+        <label for="email">Time in this location:</label>
+        <div style="text-align:center;">
+          <div v-show="isLoading" id="loading"></div>
+        </div>
+        <h1 style="font-size:48pt">{{ time | moment('timezone', `${selected}/${selectedLocation}`, 'HH:mm') }}</h1>
+        <div style="text-align:center;">
+          <button type="button" @click="reesetForm()">reset the form</button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
 <script>
+import axios from "axios";
 export default {
-  name: 'HelloWorld',
+  name: "HelloWorld",
   props: {
     msg: String
+  },
+  data() {
+    return {
+      error: false,
+      errMsg: "",
+      selected: "0",
+      selectedLocation: "0",
+      time: "",
+      areas: [],
+      locations: [],
+      isLoading: false
+    };
+  },
+  created() {
+    if (!navigator.onLine) {
+      this.error = true;
+      this.errMsg = "No Internet";
+    } else {
+      this.getAreas();
+    }
+  },
+  methods: {
+    reesetForm() {
+      this.selected = this.selectedLocation = "0";
+      this.time = '';
+      this.locations = [];
+      this.error = false;
+    },
+    getAreas() {
+      this.isLoading = true;
+      axios
+        .get("http://worldtimeapi.org/api/timezone")
+        .then(response => {
+          response.data.forEach(element => {
+            let tempElement = element.split("/");
+            if ( tempElement.length > 1 && !this.areas.includes(tempElement[0])) {
+              this.areas.push(tempElement[0]);
+            }
+          });
+        })
+        .catch(error => {
+          console.log("error occuerd areas");
+          this.error = true;
+          this.errMsg = error.response.data.error;
+          this.locations = [];
+        })
+        .finally(() => (this.isLoading = false));
+    },
+    getLocations() {
+      if(this.selected == 0) return;
+      this.locations = [];
+      this.isLoading = true;
+      if (!navigator.onLine) {
+        this.error = true;
+        this.errMsg = "No Internet";
+      } else {
+        axios
+          .get(`http://worldtimeapi.org/api/timezone/${this.selected}`)
+          .then(response => {
+            response.data.forEach(element => {
+              let tempElement = element.split("/")[1];
+              this.locations.push(tempElement);
+            });
+          })
+          .catch(error => {
+            console.log("error occuerd locations");
+            this.error = true;
+            this.errMsg = error.response.data.error;
+            if (!navigator.onLine) {
+              this.error = true;
+              this.errMsg = "No Internet";
+            }
+          })
+          .finally(() => (this.isLoading = false));
+      }
+    },
+    getTime() {
+      if(this.selectedLocation == 0) return;
+      this.isLoading = true;
+      if (!navigator.onLine) {
+        this.error = true;
+        this.errMsg = "No Internet";
+      } else {
+        axios
+          .get(
+            `http://worldtimeapi.org/api/timezone/${this.selected}/${this.selectedLocation}`
+          )
+          .then(response => {
+            this.time = response.data.unixtime;
+          })
+          .catch(error => {
+            console.log("error occuerd");
+            this.error = true;
+            this.errMsg = error.response.data.error;
+            console.log("connection = ", navigator.onLine);
+          })
+          .finally(() => (this.isLoading = false));
+      }
+    }
   }
-}
+};
 </script>
-
-<!-- Add "scoped" attribute to limit CSS to this component only -->
-<style scoped>
-h3 {
-  margin: 40px 0 0;
-}
-ul {
-  list-style-type: none;
-  padding: 0;
-}
-li {
-  display: inline-block;
-  margin: 0 10px;
-}
-a {
-  color: #42b983;
-}
-</style>
